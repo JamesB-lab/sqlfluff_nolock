@@ -6,6 +6,7 @@ This uses the rules API supported from 2.0.0 onwards.
 from sqlfluff.core.plugin import hookimpl
 from sqlfluff.core.rules import (
     BaseRule,
+    LintFix,
     LintResult,
     RuleContext,
 )
@@ -13,12 +14,13 @@ from sqlfluff.core.rules.crawlers import SegmentSeekerCrawler
 from typing import List, Type
 import os.path
 from sqlfluff.core.config import ConfigLoader
-
+from sqlfluff.utils.functional import FunctionalContext, sp
+from sqlfluff.core.parser import NewlineSegment, WhitespaceSegment, RawSegment, Bracketed, KeywordSegment
 
 @hookimpl
 def get_rules() -> List[Type[BaseRule]]:
     """Get plugin rules."""
-    return [Rule_NOLOCK_NL001]
+    return [Rule_NOLOCK_L001]
 
 
 @hookimpl
@@ -34,58 +36,72 @@ def load_default_config() -> dict:
 def get_configs_info() -> dict:
     """Get rule config validations and descriptions."""
     return {
-        "forbidden_columns": {"definition": "A list of column to forbid"},
-        # "check_from": {"definition": "Flag to check FROM clauses"},
-        # "check_join": {"definition": "Flag to check JOIN clauses"},
+        "check_from": {"definition": "Flag to check FROM clauses"},
+        "check_join": {"definition": "Flag to check JOIN clauses"},
     }
 
 
 # These two decorators allow plugins
 # to be displayed in the sqlfluff docs
-class Rule_NOLOCK_NL001(BaseRule):
-    """ORDER BY on these columns is forbidden!
+class Rule_NOLOCK_L001(BaseRule):
+    """Locking tables is forbidden
 
     **Anti-pattern**
 
-    Using ``ORDER BY`` one some forbidden columns.
+    Not using `WITH (NOLOCK)` when accessing a table
 
     .. code-block:: sql
 
-        SELECT *
-        FROM foo
-        ORDER BY
-            bar,
-            baz
+        SELECT mytable.mycol
+        FROM mytable
+        LEFT JOIN othertable ON mytable.id = othertable.id
+        ORDER BY mytable.mycol;
 
     **Best practice**
 
-    Do not order by these columns.
+    Ensure the table isn't locked.
 
     .. code-block:: sql
 
-        SELECT *
-        FROM foo
-        ORDER BY bar
+        SELECT mytable.mycol
+        FROM mytable WITH (NOLOCK)
+        LEFT JOIN othertable WITH (NOLOCK) ON mytable.id = othertable.id
+        ORDER BY mytable.mycol;
     """
 
     groups = ("all",)
-    config_keywords = ["forbidden_columns"]
-    crawl_behaviour = SegmentSeekerCrawler({"orderby_clause"})
+    config_keywords = ["check_from","check_join"]
+    crawl_behaviour = SegmentSeekerCrawler({"from_expression_element"})
     is_fix_compatible = True
 
     def __init__(self, *args, **kwargs):
         """Overwrite __init__ to set config."""
         super().__init__(*args, **kwargs)
-        self.forbidden_columns = [
-            col.strip() for col in self.forbidden_columns.split(",")
-        ]
+        self.check_from = self.check_from
+        self.check_join = self.check_join
+        self.is_fixed = False
 
     def _eval(self, context: RuleContext):
-        """We should not ORDER BY forbidden_columns."""
-        for seg in context.segment.segments:
-            col_name = seg.raw.lower()
-            if col_name in self.forbidden_columns:
-                return LintResult(
-                    anchor=seg,
-                    description=f"Column `{col_name}` not allowed in ORDER BY.",
-                )
+        """We should not lock the table when selecting."""
+        from_expression_element = FunctionalContext(context).segment
+        matches = from_expression_element.children(sp.is_type("post_table_expression")) \
+            .children(sp.is_type('bracketed')) \
+            .children(sp.is_type('query_hint_segment')) \
+            .children(sp.is_type('keyword'))
+        # print('-'*20)
+        # print(matches)
+        # print_tree(from_expression_element[0], 0)
+        if len(matches) > 0:
+            keyword = matches[0]
+            if keyword.raw == 'NOLOCK':
+                return None
+        return LintResult(
+            anchor=from_expression_element[0],
+            description="Missing table hint NOLOCK",
+            fixes=[LintFix.create_after(from_expression_element[0], [WhitespaceSegment(), RawSegment("WITH (NOLOCK)")])]
+        )
+
+def print_tree(segment, level):
+    for childseg in segment.segments:
+        print(f'{level}: {" "*level*2}{childseg} | {childseg.type}')
+        print_tree(childseg, level + 1)

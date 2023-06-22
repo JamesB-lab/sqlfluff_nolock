@@ -1,0 +1,1 @@
+"""NOLOCK sqlfluff plugin."""

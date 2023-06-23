@@ -2,10 +2,17 @@
 install:
 	pip install -e .
 
+clear:
+	clear
+
+.PHONY: test
+test: install clear
+	pytest test/
+
 .PHONY: lint
-lint:
+lint: install clear
 	sqlfluff lint --dialect tsql .
 
 .PHONY: fix
-fix:
-	sqlfluff fix --dialect tsql .
+fix: install clear
+	sqlfluff fix --dialect tsql -vvvv .

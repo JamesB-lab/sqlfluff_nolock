@@ -1,0 +1,52 @@
+rule: NOLOCK_L001
+configs:
+  dialect: tsql
+
+with_from_nolock:
+  pass_str: |
+    SELECT mytable.mycol
+    FROM mytable WITH (NOLOCK)
+    ORDER BY mytable.mycol;
+
+with_from_and_join_nolock:
+  pass_str: |
+    SELECT mytable.mycol
+    FROM mytable WITH (NOLOCK)
+    LEFT JOIN othertable WITH (NOLOCK) ON mytable.id = othertable.id
+    ORDER BY mytable.mycol;
+
+missing_from_nolock:
+  fail_str: |
+    SELECT mytable.mycol
+    FROM mytable
+    LEFT JOIN othertable WITH (NOLOCK) ON mytable.id = othertable.id
+    ORDER BY mytable.mycol;
+  fix_str: |
+    SELECT mytable.mycol
+    FROM mytable WITH (NOLOCK)
+    LEFT JOIN othertable WITH (NOLOCK) ON mytable.id = othertable.id
+    ORDER BY mytable.mycol;
+
+missing_join_nolock:
+  fail_str: |
+    SELECT mytable.mycol
+    FROM mytable WITH (NOLOCK)
+    LEFT JOIN othertable ON mytable.id = othertable.id
+    ORDER BY mytable.mycol;
+  fix_str: |
+    SELECT mytable.mycol
+    FROM mytable WITH (NOLOCK)
+    LEFT JOIN othertable WITH (NOLOCK) ON mytable.id = othertable.id
+    ORDER BY mytable.mycol;
+
+missing_from_and_join_nolock:
+  fail_str: |
+    SELECT mytable.mycol
+    FROM mytable
+    LEFT JOIN othertable ON mytable.id = othertable.id
+    ORDER BY mytable.mycol;
+  fix_str: |
+    SELECT mytable.mycol
+    FROM mytable WITH (NOLOCK)
+    LEFT JOIN othertable WITH (NOLOCK) ON mytable.id = othertable.id
+    ORDER BY mytable.mycol;

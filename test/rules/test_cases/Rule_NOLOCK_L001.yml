@@ -50,3 +50,17 @@ missing_from_and_join_nolock:
     FROM mytable WITH (NOLOCK)
     LEFT JOIN othertable WITH (NOLOCK) ON mytable.id = othertable.id
     ORDER BY mytable.mycol;
+
+missing_from_and_double_join_nolock:
+  fail_str: |
+    SELECT mytable.mycol
+    FROM mytable
+    LEFT JOIN othertable ON mytable.id = othertable.id
+    LEFT JOIN anothertable ON mytable.id = anothertable.id
+    ORDER BY mytable.mycol;
+  fix_str: |
+    SELECT mytable.mycol
+    FROM mytable WITH (NOLOCK)
+    LEFT JOIN othertable WITH (NOLOCK) ON mytable.id = othertable.id
+    LEFT JOIN anothertable WITH (NOLOCK) ON mytable.id = anothertable.id
+    ORDER BY mytable.mycol;

@@ -15,7 +15,8 @@ from typing import List, Type
 import os.path
 from sqlfluff.core.config import ConfigLoader
 from sqlfluff.utils.functional import FunctionalContext, sp
-from sqlfluff.core.parser import NewlineSegment, WhitespaceSegment, RawSegment, Bracketed, KeywordSegment
+from sqlfluff.core.parser import NewlineSegment, WhitespaceSegment, RawSegment, KeywordSegment
+from sqlfluff.dialects.dialect_tsql import TableHintSegment
 
 @hookimpl
 def get_rules() -> List[Type[BaseRule]]:
@@ -80,7 +81,6 @@ class Rule_NOLOCK_L001(BaseRule):
         self.check_from = self.check_from
         self.check_join = self.check_join
         self.is_fixed = False
-        self.give_up = 0
 
     def _eval(self, context: RuleContext):
         """We should not lock the table when selecting."""
@@ -106,7 +106,8 @@ class Rule_NOLOCK_L001(BaseRule):
                 return None
         # if self.give_up < 4:
         #     return None
-        self.give_up += 1
+        # print_tree(context.segment, 0)
+        # print(context)
         return LintResult(
             anchor = context.segment,
             description = "Missing table hint NOLOCK",
@@ -115,7 +116,10 @@ class Rule_NOLOCK_L001(BaseRule):
                     anchor_segment = context.segment,
                     edit_segments = [
                         WhitespaceSegment(),
-                        RawSegment("WITH (NOLOCK)"),
+                        # BracketedSegment(TableHintSegment([KeywordSegment('NOLOCK')])),
+                        RawSegment('WITH'),
+                        WhitespaceSegment(),
+                        RawSegment('(NOLOCK)'),
                     ],
                 )
             ],

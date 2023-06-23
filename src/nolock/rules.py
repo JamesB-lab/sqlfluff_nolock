@@ -80,25 +80,45 @@ class Rule_NOLOCK_L001(BaseRule):
         self.check_from = self.check_from
         self.check_join = self.check_join
         self.is_fixed = False
+        self.give_up = 0
 
     def _eval(self, context: RuleContext):
         """We should not lock the table when selecting."""
+        assert context.segment.is_type("from_expression_element")
+
         from_expression_element = FunctionalContext(context).segment
         matches = from_expression_element.children(sp.is_type("post_table_expression")) \
             .children(sp.is_type('bracketed')) \
             .children(sp.is_type('query_hint_segment')) \
             .children(sp.is_type('keyword'))
-        # print('-'*20)
-        # print(matches)
-        # print_tree(from_expression_element[0], 0)
         if len(matches) > 0:
             keyword = matches[0]
             if keyword.raw == 'NOLOCK':
                 return None
+            print(keyword.raw)
+        matches = from_expression_element.children(sp.is_type("alias_expression")) \
+            .children(sp.is_type('bracketed')) \
+            .children(sp.is_type('identifier_list')) \
+            .children(sp.is_type('naked_identifier'))
+        if len(matches) > 0:
+            keyword = matches[0]
+            if keyword.raw == 'NOLOCK':
+                return None
+        # if self.give_up < 4:
+        #     return None
+        self.give_up += 1
         return LintResult(
-            anchor=from_expression_element[0],
-            description="Missing table hint NOLOCK",
-            fixes=[LintFix.create_after(from_expression_element[0], [WhitespaceSegment(), RawSegment("WITH (NOLOCK)")])]
+            anchor = context.segment,
+            description = "Missing table hint NOLOCK",
+            fixes = [
+                LintFix.create_after(
+                    anchor_segment = context.segment,
+                    edit_segments = [
+                        WhitespaceSegment(),
+                        RawSegment("WITH (NOLOCK)"),
+                    ],
+                )
+            ],
         )
 
 def print_tree(segment, level):

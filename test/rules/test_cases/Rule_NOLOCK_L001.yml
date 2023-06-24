@@ -108,3 +108,17 @@ existing_table_hint_missing_nolock_provides_no_fix:
   fail_str: |
     SELECT mt.mycol
     FROM mytable AS mt WITH (ROWLOCK);
+
+ignore_missing_from_nolock:
+  pass_str: |
+    SELECT mytable.mycol
+    FROM mytable -- noqa: NOLOCK_L001
+    LEFT JOIN othertable WITH (NOLOCK) ON mytable.id = othertable.id
+    ORDER BY mytable.mycol;
+
+ignore_missing_join_nolock:
+  pass_str: |
+    SELECT mytable.mycol
+    FROM mytable WITH (NOLOCK)
+    LEFT JOIN othertable ON mytable.id = othertable.id -- noqa: NOLOCK_L001
+    ORDER BY mytable.mycol;

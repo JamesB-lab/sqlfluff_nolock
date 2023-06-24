@@ -64,3 +64,15 @@ missing_from_and_double_join_nolock:
     LEFT JOIN othertable WITH (NOLOCK) ON mytable.id = othertable.id
     LEFT JOIN anothertable WITH (NOLOCK) ON mytable.id = anothertable.id
     ORDER BY mytable.mycol;
+
+missing_from_nolock_with_alias:
+  fail_str: |
+    SELECT mytable.mycol
+    FROM mytable mt
+    LEFT JOIN othertable ot WITH (NOLOCK) ON mt.id = ot.id
+    ORDER BY mytable.mycol;
+  fix_str: |
+    SELECT mytable.mycol
+    FROM mytable WITH (NOLOCK)
+    LEFT JOIN othertable ot WITH (NOLOCK) ON mt.id = ot.id
+    ORDER BY mytable.mycol;

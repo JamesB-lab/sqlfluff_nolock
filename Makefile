@@ -9,10 +9,13 @@ clear:
 test: install clear
 	pytest test/
 
+rm_fixed:
+	rm -rf examples/*.fixed.sql
+
 .PHONY: lint
-lint: install clear
+lint: install clear rm_fixed
 	sqlfluff lint --dialect tsql .
 
 .PHONY: fix
-fix: install clear
-	sqlfluff fix --dialect tsql -vvvv .
+fix: install clear rm_fixed
+	sqlfluff fix --dialect tsql --fixed-suffix .fixed  examples

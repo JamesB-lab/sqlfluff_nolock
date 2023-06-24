@@ -3,7 +3,11 @@
 This uses the rules API supported from 2.0.0 onwards.
 """
 
+import os.path
+from typing import Tuple, List, Type
+
 from sqlfluff.core.plugin import hookimpl
+from sqlfluff.core.config import ConfigLoader
 from sqlfluff.core.rules import (
     BaseRule,
     LintFix,
@@ -11,12 +15,17 @@ from sqlfluff.core.rules import (
     RuleContext,
 )
 from sqlfluff.core.rules.crawlers import SegmentSeekerCrawler
-from typing import List, Type
-import os.path
-from sqlfluff.core.config import ConfigLoader
-from sqlfluff.utils.functional import FunctionalContext, sp
-from sqlfluff.core.parser import NewlineSegment, WhitespaceSegment, RawSegment, KeywordSegment
-from sqlfluff.dialects.dialect_tsql import TableHintSegment
+from sqlfluff.utils.functional import (
+    FunctionalContext,
+    sp,
+)
+from sqlfluff.core.parser import (
+    BaseSegment,
+    RawSegment,
+)
+from sqlfluff.dialects.dialect_tsql import (
+    TableHintSegment,
+)
 
 @hookimpl
 def get_rules() -> List[Type[BaseRule]]:
@@ -85,7 +94,17 @@ class Rule_NOLOCK_L001(BaseRule):
     def _eval(self, context: RuleContext):
         """We should not lock the table when selecting."""
         assert context.segment.is_type("from_expression_element")
+        if self._lint(context):
+            return None
+        # self.print_tree(context.segment, 0)
+        fixes = self._fixes(context)
+        return LintResult(
+            anchor = context.segment,
+            description = "Missing table hint NOLOCK",
+            fixes = fixes
+        )
 
+    def _lint(self, context: RuleContext)->bool:
         from_expression_element = FunctionalContext(context).segment
         matches = from_expression_element.children(sp.is_type("post_table_expression")) \
             .children(sp.is_type('bracketed')) \
@@ -94,8 +113,7 @@ class Rule_NOLOCK_L001(BaseRule):
         if len(matches) > 0:
             keyword = matches[0]
             if keyword.raw == 'NOLOCK':
-                return None
-            print(keyword.raw)
+                return True
         matches = from_expression_element.children(sp.is_type("alias_expression")) \
             .children(sp.is_type('bracketed')) \
             .children(sp.is_type('identifier_list')) \
@@ -103,29 +121,20 @@ class Rule_NOLOCK_L001(BaseRule):
         if len(matches) > 0:
             keyword = matches[0]
             if keyword.raw == 'NOLOCK':
-                return None
-        # if self.give_up < 4:
-        #     return None
-        # print_tree(context.segment, 0)
-        # print(context)
-        return LintResult(
-            anchor = context.segment,
-            description = "Missing table hint NOLOCK",
-            fixes = [
-                LintFix.create_after(
-                    anchor_segment = context.segment,
-                    edit_segments = [
-                        WhitespaceSegment(),
-                        # BracketedSegment(TableHintSegment([KeywordSegment('NOLOCK')])),
-                        RawSegment('WITH'),
-                        WhitespaceSegment(),
-                        RawSegment('(NOLOCK)'),
-                    ],
-                )
-            ],
-        )
+                return True
+        return False
+    
+    def _fixes(self, context: RuleContext)->Tuple[Type[LintFix]]:
+        tablename = context.segment.get_raw_segments()[0].raw
+        return [
+            LintFix.replace(
+                context.segment, [
+                    RawSegment(f'{tablename} WITH (NOLOCK)'),
+                ]
+            )
+        ]
 
-def print_tree(segment, level):
-    for childseg in segment.segments:
-        print(f'{level}: {" "*level*2}{childseg} | {childseg.type}')
-        print_tree(childseg, level + 1)
+    def print_tree(self, segment: BaseSegment, level: int):
+        for childseg in segment.segments:
+            print(f'{level}: {" "*level*2}{childseg} | {childseg.type}')
+            self.print_tree(childseg, level + 1)

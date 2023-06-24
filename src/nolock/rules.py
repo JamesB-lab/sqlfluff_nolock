@@ -21,9 +21,15 @@ from sqlfluff.utils.functional import (
 )
 from sqlfluff.core.parser import (
     BaseSegment,
-    RawSegment,
+    WhitespaceSegment,
+    KeywordSegment,
+)
+from sqlfluff.core.parser.segments import (
+    BracketedSegment,
+    SymbolSegment,
 )
 from sqlfluff.dialects.dialect_tsql import (
+    PostTableExpressionGrammar,
     TableHintSegment,
 )
 
@@ -55,6 +61,8 @@ def get_configs_info() -> dict:
 # to be displayed in the sqlfluff docs
 class Rule_NOLOCK_L001(BaseRule):
     """Locking tables is forbidden
+
+    Reference: https://learn.microsoft.com/en-us/sql/t-sql/queries/hints-transact-sql-table?view=sql-server-ver16
 
     **Anti-pattern**
 
@@ -96,7 +104,6 @@ class Rule_NOLOCK_L001(BaseRule):
         assert context.segment.is_type("from_expression_element")
         if self._lint(context):
             return None
-        # self.print_tree(context.segment, 0)
         fixes = self._fixes(context)
         return LintResult(
             anchor = context.segment,
@@ -104,37 +111,56 @@ class Rule_NOLOCK_L001(BaseRule):
             fixes = fixes
         )
 
-    def _lint(self, context: RuleContext)->bool:
-        from_expression_element = FunctionalContext(context).segment
-        matches = from_expression_element.children(sp.is_type("post_table_expression")) \
+    def _lint(self, context: RuleContext) -> bool:
+        return FunctionalContext(context).segment \
+            .children(sp.is_type("post_table_expression")) \
             .children(sp.is_type('bracketed')) \
             .children(sp.is_type('query_hint_segment')) \
-            .children(sp.is_type('keyword'))
-        if len(matches) > 0:
-            keyword = matches[0]
-            if keyword.raw == 'NOLOCK':
-                return True
-        matches = from_expression_element.children(sp.is_type("alias_expression")) \
-            .children(sp.is_type('bracketed')) \
-            .children(sp.is_type('identifier_list')) \
-            .children(sp.is_type('naked_identifier'))
-        if len(matches) > 0:
-            keyword = matches[0]
-            if keyword.raw == 'NOLOCK':
-                return True
-        return False
+            .children(sp.is_type('keyword')) \
+            .any(sp.raw_is('NOLOCK'))
     
-    def _fixes(self, context: RuleContext)->Tuple[Type[LintFix]]:
-        tablename = context.segment.get_raw_segments()[0].raw
+    def _fixes(self, context: RuleContext)->Tuple[Type[LintFix]] | None:
+        root_segment = FunctionalContext(context).segment
+        # First check if a query_hint_segment already exists, if so don't provide a fix
+        query_hint_segment = root_segment.children(sp.is_type("post_table_expression")) \
+            .children(sp.is_type('bracketed')) \
+            .children(sp.is_type('query_hint_segment'))
+        if len(query_hint_segment) > 0:
+            return None
+        # Otherwise find an appropriate anchor and create the segment after it
+        alias_expression_segment = root_segment.children(sp.is_type('alias_expression'))
+        table_expression_segment = root_segment.children(sp.is_type('table_expression'))
+        create_after_anchor: BaseSegment
+        if len(alias_expression_segment) > 0:
+            create_after_anchor = alias_expression_segment[0]
+        elif len(table_expression_segment) > 0:
+            create_after_anchor = table_expression_segment[0]
+        else:
+            return None
         return [
-            LintFix.replace(
-                context.segment, [
-                    RawSegment(f'{tablename} WITH (NOLOCK)'),
-                ]
+            LintFix.create_after(
+                anchor_segment = create_after_anchor,
+                edit_segments = [
+                    WhitespaceSegment(),
+                    PostTableExpressionGrammar(
+                        [
+                            KeywordSegment('WITH'),
+                            WhitespaceSegment(),
+                            BracketedSegment(
+                                [
+                                    TableHintSegment(
+                                        [
+                                            SymbolSegment('('),
+                                            KeywordSegment('NOLOCK'),
+                                            SymbolSegment(')'),
+                                        ],
+                                    ),
+                                ],
+                                start_bracket = [SymbolSegment('(')],
+                                end_bracket = [SymbolSegment(')')],
+                            ),
+                        ],
+                    ),
+                ],
             )
         ]
-
-    def print_tree(self, segment: BaseSegment, level: int):
-        for childseg in segment.segments:
-            print(f'{level}: {" "*level*2}{childseg} | {childseg.type}')
-            self.print_tree(childseg, level + 1)

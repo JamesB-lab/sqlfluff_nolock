@@ -68,12 +68,43 @@ missing_from_and_double_join_nolock:
 
 missing_from_nolock_with_alias:
   fail_str: |
-    SELECT mytable.mycol
-    FROM mytable mt
-    LEFT JOIN othertable ot WITH (NOLOCK) ON mt.id = ot.id
-    ORDER BY mytable.mycol;
+    SELECT mt.mycol
+    FROM mytable AS mt
+    LEFT JOIN othertable AS ot WITH (NOLOCK) ON mt.id = ot.id
+    ORDER BY mt.mycol;
   fix_str: |
-    SELECT mytable.mycol
-    FROM mytable WITH (NOLOCK)
-    LEFT JOIN othertable ot WITH (NOLOCK) ON mt.id = ot.id
-    ORDER BY mytable.mycol;
+    SELECT mt.mycol
+    FROM mytable AS mt WITH (NOLOCK)
+    LEFT JOIN othertable AS ot WITH (NOLOCK) ON mt.id = ot.id
+    ORDER BY mt.mycol;
+
+missing_from_and_join_nolock_with_alias:
+  fail_str: |
+    SELECT mt.mycol
+    FROM mytable AS mt
+    LEFT JOIN othertable AS ot ON mt.id = ot.id
+    ORDER BY mt.mycol;
+  fix_str: |
+    SELECT mt.mycol
+    FROM mytable AS mt WITH (NOLOCK)
+    LEFT JOIN othertable AS ot WITH (NOLOCK) ON mt.id = ot.id
+    ORDER BY mt.mycol;
+
+missing_from_and_double_join_nolock_with_alias:
+  fail_str: |
+    SELECT mt.mycol
+    FROM mytable AS mt
+    LEFT JOIN othertable AS ot ON mt.id = ot.id
+    LEFT JOIN anothertable AS at ON mt.id = at.id
+    ORDER BY mt.mycol;
+  fix_str: |
+    SELECT mt.mycol
+    FROM mytable AS mt WITH (NOLOCK)
+    LEFT JOIN othertable AS ot WITH (NOLOCK) ON mt.id = ot.id
+    LEFT JOIN anothertable AS at WITH (NOLOCK) ON mt.id = at.id
+    ORDER BY mt.mycol;
+
+existing_table_hint_missing_nolock_provides_no_fix:
+  fail_str: |
+    SELECT mt.mycol
+    FROM mytable AS mt WITH (ROWLOCK);

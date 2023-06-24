@@ -1,6 +1,7 @@
 rule: NOLOCK_L001
 configs:
-  dialect: tsql
+  core:
+    dialect: tsql
 
 with_from_nolock:
   pass_str: |

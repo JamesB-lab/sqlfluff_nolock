@@ -9,7 +9,7 @@ ids, test_cases = load_test_cases(
     )
 )
 
-
+test_cases[0].configs
 @pytest.mark.parametrize("test_case", test_cases, ids=ids)
 def test__nolock(test_case):
     """Run the tests."""

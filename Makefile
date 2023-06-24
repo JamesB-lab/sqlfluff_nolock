@@ -7,7 +7,7 @@ clear:
 
 .PHONY: test
 test: install clear
-	pytest test/
+	pytest -s test/
 
 rm_fixed:
 	rm -rf examples/*.fixed.sql

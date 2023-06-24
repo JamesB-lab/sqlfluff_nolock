@@ -137,6 +137,8 @@ class Rule_NOLOCK_L001(BaseRule):
             create_after_anchor = table_expression_segment[0]
         else:
             return None
+        start = SymbolSegment('(', type = 'start_bracket')
+        end = SymbolSegment(')', type = 'end_bracket')
         return [
             LintFix.create_after(
                 anchor_segment = create_after_anchor,
@@ -150,14 +152,14 @@ class Rule_NOLOCK_L001(BaseRule):
                                 [
                                     TableHintSegment(
                                         [
-                                            SymbolSegment('('),
+                                            start,
                                             KeywordSegment('NOLOCK'),
-                                            SymbolSegment(')'),
+                                            end,
                                         ],
                                     ),
                                 ],
-                                start_bracket = [SymbolSegment('(')],
-                                end_bracket = [SymbolSegment(')')],
+                                start_bracket = [start],
+                                end_bracket = [end],
                             ),
                         ],
                     ),

@@ -88,15 +88,13 @@ class Rule_NOLOCK_L001(BaseRule):
     """
 
     groups = ("all",)
-    config_keywords = ["check_from","check_join"]
+    config_keywords = []
     crawl_behaviour = SegmentSeekerCrawler({"from_expression_element"})
     is_fix_compatible = True
 
     def __init__(self, *args, **kwargs):
         """Overwrite __init__ to set config."""
         super().__init__(*args, **kwargs)
-        self.check_from = self.check_from
-        self.check_join = self.check_join
         self.is_fixed = False
 
     def _eval(self, context: RuleContext):
@@ -112,12 +110,15 @@ class Rule_NOLOCK_L001(BaseRule):
         )
 
     def _lint(self, context: RuleContext) -> bool:
-        return FunctionalContext(context).segment \
-            .children(sp.is_type("post_table_expression")) \
-            .children(sp.is_type('bracketed')) \
-            .children(sp.is_type('query_hint_segment')) \
-            .children(sp.is_type('keyword')) \
-            .any(sp.raw_is('NOLOCK'))
+        fc = FunctionalContext(context)
+        if not fc.segment.children(sp.is_type("table_expression")).children().any(sp.is_type("table_reference")):
+            return True
+        return fc.segment \
+                .children(sp.is_type("post_table_expression")) \
+                .children(sp.is_type('bracketed')) \
+                .children(sp.is_type('query_hint_segment')) \
+                .children(sp.is_type('keyword')) \
+                .any(sp.raw_is('NOLOCK'))
     
     def _fixes(self, context: RuleContext)->Tuple[Type[LintFix]] | None:
         root_segment = FunctionalContext(context).segment
